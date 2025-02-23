@@ -1,191 +1,241 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import * as THREE from "three";
+import React, { useState, useEffect, useRef } from "react";
 import ReactModal from "react-modal";
 
-// Uygulamanın kök elemanını belirleyin (örn. Next.js için document.body)
+// Uygulama kökünün Modal için tanımlanması (örneğin Next.js'de #__next olabilir)
 if (typeof window !== "undefined") {
   ReactModal.setAppElement(document.body);
 }
 
-const Boot = ({ onComplete }) => {
-  const [loadingProgress, setLoadingProgress] = useState({});
-  const [allLoaded, setAllLoaded] = useState(false);
-
-  // Yüklenmesi gereken asset’ler – istediğiniz asset’leri buraya ekleyin
-  const assets = [
-    { name: "Background Image", url: "/photos/background3.jpg", type: "texture" },
-    { name: "HDR Environment", url: "/hdr/hdr12.hdr", type: "texture" },
-    { name: "Office Ambience", url: "/sounds/office-ambience.wav", type: "audio" },
-    // Ek asset’ler eklenebilir…
+// 500 adet benzersiz boot mesajı üretmek için yardımcı fonksiyon
+function generateBootMessages(num) {
+  const baseMessages = [
+    "Initializing subsystem",
+    "Loading module",
+    "Activating service",
+    "Calibrating sensors",
+    "Configuring hardware",
+    "Starting process",
+    "Verifying configuration",
+    "Synchronizing clocks",
+    "Optimizing performance",
+    "Checking integrity",
   ];
+  const failedCount = 3;
+  const warningCount = 8;
+  const okCount = 50;
+  const indices = [...Array(num).keys()];
 
-  useEffect(() => {
-    // Her asset için başlangıç değeri 0
-    const initialProgress = {};
-    assets.forEach(asset => {
-      initialProgress[asset.url] = 0;
-    });
-    setLoadingProgress(initialProgress);
+  // Shuffle indices
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
 
-    // Asset’leri yüklemek için promise’lar oluşturuyoruz
-    const promises = assets.map(asset => {
-      if (asset.type === "texture") {
-        return new Promise((resolve) => {
-          const loader = new THREE.TextureLoader();
-          loader.load(
-            asset.url,
-            (texture) => {
-              setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
-              resolve(texture);
-            },
-            (xhr) => {
-              if (xhr.total) {
-                const progress = (xhr.loaded / xhr.total) * 100;
-                setLoadingProgress(prev => ({ ...prev, [asset.url]: progress }));
-              }
-            },
-            (err) => {
-              console.error("Error loading texture:", asset.url, err);
-              setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
-              resolve(null);
-            }
-          );
-        });
-      } else if (asset.type === "audio") {
-        return new Promise((resolve) => {
-          // Ses dosyası için HTMLAudioElement kullanarak oncanplaythrough olayını dinliyoruz.
-          const audio = new Audio();
-          audio.src = asset.url;
-          audio.oncanplaythrough = () => {
-            setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
-            resolve(audio);
-          };
-          audio.onerror = (err) => {
-            console.error("Error loading audio:", asset.url, err);
-            setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
-            resolve(null);
-          };
-          audio.load();
-        });
+  const failedIndices = new Set(indices.slice(0, failedCount));
+  const warningIndices = new Set(indices.slice(failedCount, failedCount + warningCount));
+  const okIndices = new Set(
+    indices.slice(failedCount + warningCount, failedCount + warningCount + okCount)
+  );
+
+  const messages = [];
+  for (let i = 0; i < num; i++) {
+    const base = baseMessages[Math.floor(Math.random() * baseMessages.length)];
+    let msg = "";
+    if (failedIndices.has(i)) {
+      const percent = Math.floor(Math.random() * 100);
+      msg = `[FAILED] ${base}... [ ${percent}% ]`;
+    } else if (warningIndices.has(i)) {
+      const percent = Math.floor(Math.random() * 100);
+      msg = `[WARNING] ${base}... [ ${percent}% ]`;
+    } else if (okIndices.has(i)) {
+      const percent = Math.floor(Math.random() * 100);
+      msg = `[OK] ${base}... [ ${percent}% ]`;
+    } else {
+      if (Math.random() < 0.3) {
+        const percent = Math.floor(Math.random() * 100);
+        msg = `${base}... [ ${percent}% ]`;
       } else {
-        return Promise.resolve(null);
+        msg = base;
       }
-    });
+    }
+    messages.push(msg);
+  }
+  return messages;
+}
 
-    // Tüm asset’ler yüklendiğinde
-    Promise.all(promises).then(() => {
-      setAllLoaded(true);
-    });
-  }, [assets]);
+const rawBootMessages = generateBootMessages(500);
 
-  // Yükleme tamamlandığında, kullanıcı Enter'a veya mobilde dokunduğunda onComplete çağrılır.
+// Her 5 satırdan 1'ini gösterecek şekilde filtreleme (yaklaşık 100 satır)
+const displayedMessages = rawBootMessages.filter((_, i) => i % 5 === 0);
+
+const Boot = ({ onComplete, sceneLoaded }) => {
+  const [messages, setMessages] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const messageIndexRef = useRef(0);
+  const intervalRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Mobil cihaz tespiti
+  const isMobile =
+    typeof navigator !== "undefined" &&
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // Mesajların ekrana yazdırılması (80ms aralıkla)
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setMessages((prev) => {
+        if (messageIndexRef.current < displayedMessages.length) {
+          const newMessage = displayedMessages[messageIndexRef.current];
+          messageIndexRef.current += 1;
+          return [...prev, newMessage];
+        } else {
+          clearInterval(intervalRef.current);
+          // Tüm mesajlar bittiğinde ve sahne yüklendiyse modalı tetikle
+          if (sceneLoaded) {
+            setTimeout(() => {
+              setShowModal(true);
+            }, 500);
+          }
+          return prev;
+        }
+      });
+    }, 80);
+
+    return () => clearInterval(intervalRef.current);
+  }, [sceneLoaded]);
+
+  // Yeni mesaj eklendiğinde container'ı otomatik en alta kaydır
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Sahne yüklendiğinde ve mesajlar bittiğinde modalı aç
+  useEffect(() => {
+    if (
+      messageIndexRef.current >= displayedMessages.length &&
+      sceneLoaded &&
+      !showModal
+    ) {
+      setTimeout(() => {
+        setShowModal(true);
+      }, 500);
+    }
+  }, [sceneLoaded, showModal]);
+
+  // Masaüstü: Enter tuşu, mobil: dokunma ile tetikleme
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Enter" && allLoaded) {
+      if (!isMobile && e.key === "Enter" && showModal) {
         onComplete();
       }
     };
+
     const handleTouch = () => {
-      if (allLoaded) {
+      if (isMobile && showModal) {
         onComplete();
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("touchstart", handleTouch);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("touchstart", handleTouch);
     };
-  }, [allLoaded, onComplete]);
+  }, [showModal, onComplete, isMobile]);
+
+  // Mesajların başındaki durum etiketlerini renklendiren fonksiyon
+  const formatMessage = (msg) => {
+    const regex = /^\[(OK|WARNING|FAILED)\]/;
+    const match = msg.match(regex);
+    if (match) {
+      const status = `[${match[1]}]`;
+      const rest = msg.slice(status.length);
+      let style = "";
+      if (status === "[OK]") style = "color:#00ff00;";
+      else if (status === "[WARNING]") style = "color:yellow;";
+      else if (status === "[FAILED]") style = "color:red;";
+      return `<span style="${style}">${status}</span>${rest}`;
+    }
+    return msg;
+  };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        backgroundColor: "black",
-        color: "white",
-        fontFamily: "monospace",
-        zIndex: 50,
-        overflowY: "auto",
-        padding: "20px",
-      }}
-    >
-      <h1>Loading Assets</h1>
-      <div>
-        {assets.map(asset => {
-          const progress = loadingProgress[asset.url] || 0;
-          return (
-            <div key={asset.url} style={{ marginBottom: "20px" }}>
-              <div>{asset.name}</div>
-              <div
-                style={{
-                  width: "100%",
-                  height: "10px",
-                  backgroundColor: "#333",
-                  borderRadius: "5px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progress}%`,
-                    height: "100%",
-                    backgroundColor: "#0f0",
-                    transition: "width 0.3s ease",
-                  }}
-                ></div>
-              </div>
-              <div>{Math.floor(progress)}%</div>
-            </div>
-          );
-        })}
+    <>
+      {/* Ana siyah ekran ve mesajların bulunduğu container */}
+      <div
+        ref={containerRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          backgroundColor: "black",
+          color: "white",
+          fontFamily: "monospace",
+          padding: "20px",
+          overflowY: "hidden",
+          whiteSpace: "pre-line",
+          zIndex: 50,
+        }}
+      >
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            dangerouslySetInnerHTML={{ __html: formatMessage(msg) }}
+          />
+        ))}
       </div>
 
-      {allLoaded && (
-        <ReactModal
-          isOpen={true}
-          shouldCloseOnOverlayClick={false}
-          shouldCloseOnEsc={false}
-          style={{
-            content: {
-              backgroundColor: "#333",
-              color: "white",
-              top: "50%",
-              left: "50%",
-              right: "auto",
-              bottom: "auto",
-              transform: "translate(-50%, -50%)",
-              textAlign: "center",
-              border: "none",
-              borderRadius: "8px",
-              padding: "40px",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
-              fontFamily: "monospace",
-            },
-            overlay: {
-              backgroundColor: "rgba(0, 0, 0, 0.75)",
-              zIndex: 60,
-            },
-          }}
-        >
-          <h2 style={{ margin: 0, animation: "blink 1s infinite" }}>
-            {window.innerWidth < 768 ? "Please Tap on Screen" : "Please Press Enter"}
-          </h2>
-          <style>{`
-            @keyframes blink {
-              0% { opacity: 1; }
-              50% { opacity: 0; }
-              100% { opacity: 1; }
-            }
-          `}</style>
-        </ReactModal>
-      )}
-    </div>
+      {/* React Modal - Estetik açıdan geliştirilmiş */}
+      <ReactModal
+        isOpen={showModal}
+        onRequestClose={() => {}}
+        shouldCloseOnOverlayClick={false}
+        shouldCloseOnEsc={false}
+        style={{
+          content: {
+            backgroundColor: "#333",
+            color: "white",
+            top: "50%",
+            left: "50%",
+            right: "auto",
+            bottom: "auto",
+            transform: "translate(-50%, -50%)",
+            textAlign: "center",
+            border: "none",
+            borderRadius: "8px",
+            padding: "40px",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+            fontFamily: "monospace",
+          },
+          overlay: {
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            zIndex: 60,
+          },
+        }}
+      >
+        {/* Yanıp sönen metin için CSS keyframes */}
+        <style>{`
+          @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+          }
+          .blink {
+            animation: blink 1s infinite;
+          }
+        `}</style>
+        <h2 className="blink" style={{ margin: 0 }}>
+          {isMobile ? "Please Tap on Screen" : "Please Press Enter"}
+        </h2>
+      </ReactModal>
+    </>
   );
 };
 
