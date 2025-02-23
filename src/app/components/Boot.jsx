@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import * as THREE from "three";
 import ReactModal from "react-modal";
 
@@ -8,78 +8,89 @@ if (typeof window !== "undefined") {
   ReactModal.setAppElement(document.body);
 }
 
-const Boot = ({ onComplete, sceneLoaded }) => {
-  const [overallProgress, setOverallProgress] = useState(0);
+const Boot = ({ onComplete }) => {
+  const [loadingProgress, setLoadingProgress] = useState({});
   const [allLoaded, setAllLoaded] = useState(false);
 
-  // Yüklenmesi gereken varlıklar (assets) listesi – burada ihtiyaç duyduğunuz varlıkları ekleyebilirsiniz
+  // Yüklenmesi gereken asset’ler – istediğiniz asset’leri buraya ekleyin
   const assets = [
-    { name: "Background Image", url: "/photos/background3.jpg" },
-    { name: "HDR Environment", url: "/hdr/hdr12.hdr" },
-    { name: "Office Ambience", url: "/sounds/office-ambience.wav" },
-    // Ek varlıklar ekleyebilirsiniz...
+    { name: "Background Image", url: "/photos/background3.jpg", type: "texture" },
+    { name: "HDR Environment", url: "/hdr/hdr12.hdr", type: "texture" },
+    { name: "Office Ambience", url: "/sounds/office-ambience.wav", type: "audio" },
+    // Ek asset’ler eklenebilir…
   ];
 
-  // Genel yükleme ilerlemesini, varlıkların eşit ağırlıkta olduğunu varsayarak, parçalara bölüyoruz.
-  const getAssetProgress = (index) => {
-    const segment = 100 / assets.length;
-    const lower = index * segment;
-    const upper = (index + 1) * segment;
-    if (overallProgress >= upper) return 100;
-    if (overallProgress <= lower) return 0;
-    return ((overallProgress - lower) / segment) * 100;
-  };
-
-  // THREE.DefaultLoadingManager’a bağlı olarak ilerlemeyi güncelle
   useEffect(() => {
-    const manager = THREE.DefaultLoadingManager;
+    // Her asset için başlangıç değeri 0
+    const initialProgress = {};
+    assets.forEach(asset => {
+      initialProgress[asset.url] = 0;
+    });
+    setLoadingProgress(initialProgress);
 
-    const updateProgress = () => {
-      if (manager.itemsTotal > 0) {
-        const prog = (manager.loaded / manager.itemsTotal) * 100;
-        setOverallProgress(prog);
-        if (prog >= 100) {
-          setAllLoaded(true);
-        }
+    // Asset’leri yüklemek için promise’lar oluşturuyoruz
+    const promises = assets.map(asset => {
+      if (asset.type === "texture") {
+        return new Promise((resolve) => {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            asset.url,
+            (texture) => {
+              setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
+              resolve(texture);
+            },
+            (xhr) => {
+              if (xhr.total) {
+                const progress = (xhr.loaded / xhr.total) * 100;
+                setLoadingProgress(prev => ({ ...prev, [asset.url]: progress }));
+              }
+            },
+            (err) => {
+              console.error("Error loading texture:", asset.url, err);
+              setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
+              resolve(null);
+            }
+          );
+        });
+      } else if (asset.type === "audio") {
+        return new Promise((resolve) => {
+          // Ses dosyası için HTMLAudioElement kullanarak oncanplaythrough olayını dinliyoruz.
+          const audio = new Audio();
+          audio.src = asset.url;
+          audio.oncanplaythrough = () => {
+            setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
+            resolve(audio);
+          };
+          audio.onerror = (err) => {
+            console.error("Error loading audio:", asset.url, err);
+            setLoadingProgress(prev => ({ ...prev, [asset.url]: 100 }));
+            resolve(null);
+          };
+          audio.load();
+        });
       } else {
-        // Hiçbir varlık yüklenmiyorsa bile %100 kabul et (örneğin, sahne render edildiğinde)
-        setOverallProgress(100);
-        setAllLoaded(true);
+        return Promise.resolve(null);
       }
-    };
+    });
 
-    manager.onProgress = (url, loaded, total) => {
-      updateProgress();
-    };
+    // Tüm asset’ler yüklendiğinde
+    Promise.all(promises).then(() => {
+      setAllLoaded(true);
+    });
+  }, [assets]);
 
-    manager.onLoad = () => {
-      updateProgress();
-    };
-
-    // Mount esnasında bir kez güncelleme yapalım
-    updateProgress();
-
-    // Cleanup – manager’ın callback’lerini temizliyoruz (diğer loader’larınız varsa dikkatli olun)
-    return () => {
-      manager.onProgress = null;
-      manager.onLoad = null;
-    };
-  }, []);
-
-  // Yükleme tamamlandığında (allLoaded true olduğunda) Enter ya da dokunma ile onComplete çağrılıyor
+  // Yükleme tamamlandığında, kullanıcı Enter'a veya mobilde dokunduğunda onComplete çağrılır.
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Enter" && allLoaded) {
         onComplete();
       }
     };
-
     const handleTouch = () => {
       if (allLoaded) {
         onComplete();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("touchstart", handleTouch);
     return () => {
@@ -106,8 +117,8 @@ const Boot = ({ onComplete, sceneLoaded }) => {
     >
       <h1>Loading Assets</h1>
       <div>
-        {assets.map((asset, index) => {
-          const progress = getAssetProgress(index);
+        {assets.map(asset => {
+          const progress = loadingProgress[asset.url] || 0;
           return (
             <div key={asset.url} style={{ marginBottom: "20px" }}>
               <div>{asset.name}</div>
@@ -162,10 +173,7 @@ const Boot = ({ onComplete, sceneLoaded }) => {
             },
           }}
         >
-          <h2
-            className="blink"
-            style={{ margin: 0, animation: "blink 1s infinite" }}
-          >
+          <h2 style={{ margin: 0, animation: "blink 1s infinite" }}>
             {window.innerWidth < 768 ? "Please Tap on Screen" : "Please Press Enter"}
           </h2>
           <style>{`
