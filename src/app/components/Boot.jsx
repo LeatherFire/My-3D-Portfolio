@@ -10,7 +10,6 @@ const Boot = ({ onComplete }) => {
   // Yüklenmesi gereken asset'lerin listesi (ihtiyacınıza göre güncelleyebilirsiniz)
   const assets = [
     { name: "Background Image", url: "/photos/background3.jpg", type: "texture" },
-    { name: "HDR Environment", url: "/hdr/hdr12.hdr", type: "texture" },
     { name: "Office Ambience", url: "/sounds/office-ambience.wav", type: "audio" },
   ];
 
