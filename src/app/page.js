@@ -484,7 +484,12 @@ function Scene({
         groundColor={"black"}
         intensity={0.5}
       />
-<Environment preset="sunset" background={false} blur={0.8} />
+        <Environment
+          files="/hdr/hdr12.hdr"
+          background={false}
+          intensity={1.0}
+          blur={1}
+        />
       <Background />
       <Office
         position={[0, -14.5, 0]}
