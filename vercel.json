@@ -1,0 +1,14 @@
+{
+    "headers": [
+      {
+        "source": "/hdr/(.*)",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "image/vnd.radiance"
+          }
+        ]
+      }
+    ]
+  }
+  
