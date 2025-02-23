@@ -32,7 +32,7 @@ import { TextureLoader } from "three";
 
 import SplashScreen from "./components/SplashScreen";
 import Boot from "./components/Boot";
-
+import EnvironmentHDR from "./components/EnvironmentHDR";
 
 // ----------------------------------------------------------------
 // YÜKLEME EKRANI (GERÇEK ZAMANLI PROGRESS BAR)
@@ -484,21 +484,7 @@ function Scene({
         groundColor={"black"}
         intensity={0.5}
       />
-      {isSafariOrFirefox ? (
-        <Environment
-          files="/hdr/hdr12.hdr"
-          background={false}
-          intensity={1.0}
-          blur={1}
-        />
-      ) : (
-        <Environment
-          files="/hdr/hdr12.hdr"
-          background={false}
-          intensity={1.0}
-          blur={1}
-        />
-      )}
+      <EnvironmentHDR />
       <Background />
       <Office
         position={[0, -14.5, 0]}
