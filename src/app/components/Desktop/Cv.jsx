@@ -326,7 +326,7 @@ const [selectedWordlist, setSelectedWordlist] = useState(getRandomItem(wordlistO
       selectedWordlist === simulationData.cv.wordlist && (
         <span
           className="blinking"
-          onClick={() => window.open("/pdfs/CVENG.PDF", "_blank")}
+          onClick={() => window.open("/pdfs/CVENG.pdf", "_blank")}
           style={{
             position: "absolute",
             top: "10px",

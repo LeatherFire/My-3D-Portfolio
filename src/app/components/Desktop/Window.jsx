@@ -595,7 +595,7 @@ export default function Window({
       borderRadius: "4px",
       animation: "blinking 1.5s infinite",
     }}
-      onClick={() => window.open("/pdfs/CVENG.PDF", "_blank")}
+      onClick={() => window.open("/pdfs/CVENG.pdf", "_blank")}
     >
       (PDF)
     </div>
