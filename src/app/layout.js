@@ -1,5 +1,10 @@
 // app/layout.js
 import "./globals.css";
+import * as THREE from "three";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
+
+// .hdr uzantılı dosyalar için varsayılan handler'ı ayarla:
+THREE.DefaultLoadingManager.addHandler(/\.hdr$/i, new RGBELoader());
 
 export const metadata = {
   title: "LeatherFire Portfolio",

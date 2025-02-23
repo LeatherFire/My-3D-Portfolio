@@ -32,10 +32,7 @@ import { TextureLoader } from "three";
 
 import SplashScreen from "./components/SplashScreen";
 import Boot from "./components/Boot";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 
-// .hdr uzantılı dosyalar için varsayılan loader olarak RGBELoader’ı ayarla
-THREE.DefaultLoadingManager.addHandler(/\.hdr$/i, new RGBELoader());
 
 // ----------------------------------------------------------------
 // YÜKLEME EKRANI (GERÇEK ZAMANLI PROGRESS BAR)
